@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  clippy:
+    name: Clippy Check
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install capnp dependencies
+        run: sudo apt-get install -y capnproto libcapnp-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.88
+        with:
+          components: clippy
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: "false"
+          key: cargo-inputs-${{ hashFiles('**/Cargo.toml', 'Cargo.lock') }}
+
+      # Each crate is linted on its own: `--workspace` would unify `stratum-apps`
+      # features across every member, so code relying on a feature that only
+      # another app enables would pass here and still fail to build once the
+      # app is compiled alone for a release.
+      - name: Clippy check
+        run: |
+          cargo clippy -p stratum-apps --all-features -- -D warnings
+          for crate in pool_sv2 jd_server_sv2 jd_client_sv2 translator_sv2 bitcoin_core_sv2 integration_tests_sv2; do
+            cargo clippy -p "$crate" -- -D warnings
+          done
+
+  fmt:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install capnp dependencies
+        run: sudo apt-get install -y capnproto libcapnp-dev
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  machete:
+    name: Unused Dependencies (cargo machete)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run cargo-machete
+        uses: bnjbvr/cargo-machete@main

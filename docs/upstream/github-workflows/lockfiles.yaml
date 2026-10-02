@@ -1,0 +1,44 @@
+name: Lockfiles
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install capnp dependencies
+        run: sudo apt-get install -y capnproto libcapnp-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: "false"
+          key: cargo-inputs-${{ hashFiles('**/Cargo.toml', 'Cargo.lock') }}
+
+      - name: Build with locked dependencies
+        run: |
+          cargo build --workspace --locked
+          cargo build -p stratum-apps --all-features --locked
+
+      # `--workspace` unifies `stratum-apps` features across every member, while
+      # releases, Docker images and `cargo publish` build one app at a time.
+      # Checking each app alone verifies it declares every feature it relies on.
+      - name: Check each app with only its own features
+        run: |
+          for app in pool_sv2 jd_server_sv2 jd_client_sv2 translator_sv2; do
+            cargo check -p "$app" --locked
+          done

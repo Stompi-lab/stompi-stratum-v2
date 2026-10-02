@@ -1,0 +1,15 @@
+# Documentation template only. Generate usable keys with scripts/stompi-config.py.
+# Never use the upstream example authority keys for your own pool.
+authority_public_key = "GENERATE_YOUR_OWN_PUBLIC_KEY"
+authority_secret_key = "GENERATE_YOUR_OWN_PRIVATE_KEY"
+cert_validity_sec = 3600
+listen_address = "127.0.0.1:3334"
+coinbase_reward_script = "addr(YOUR_STP_ADDRESS)"
+server_id = 1
+pool_signature = "Stompi Stratum V2"
+shares_per_minute = 6.0
+share_batch_size = 10
+monitoring_address = "127.0.0.1:19090"
+monitoring_cache_refresh_secs = 15
+[template_provider_type.Sv2Tp]
+address = "127.0.0.1:18442"

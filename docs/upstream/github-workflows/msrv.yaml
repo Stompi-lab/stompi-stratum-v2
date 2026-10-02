@@ -1,0 +1,41 @@
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+name: MSRV 1.88 Check
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      RUSTFLAGS: -C debuginfo=0
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: "false"
+          key: cargo-inputs-${{ hashFiles('**/Cargo.toml', 'Cargo.lock') }}
+
+      - name: Install capnp dependencies
+        run: sudo apt-get install -y capnproto libcapnp-dev
+
+      # Check test compilation without running tests.
+      #
+      # Each crate is compiled on its own: `--workspace` would unify `stratum-apps`
+      # features across every member, so an app would be checked against features
+      # it does not enable when it is compiled alone for a release.
+      - name: Check test compilation for each crate
+        run: |
+          for crate in stratum-apps pool_sv2 jd_server_sv2 jd_client_sv2 translator_sv2; do
+            cargo test -p "$crate" --all-features --no-run
+          done
+          cargo test -p integration_tests_sv2 --no-run
+          cargo test -p bitcoin_core_sv2 --no-run

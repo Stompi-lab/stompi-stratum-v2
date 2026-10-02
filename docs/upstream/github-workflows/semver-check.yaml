@@ -1,0 +1,67 @@
+name: Semver Check
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  semver-check:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.88
+
+      - name: Install capnp dependencies
+        run: sudo apt-get install -y capnproto libcapnp-dev
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: "false"
+          key: cargo-inputs-${{ hashFiles('**/Cargo.toml', 'Cargo.lock') }}
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake
+
+      # Install cargo-binstall so tool installs below use prebuilt binaries.
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.20.0
+        with:
+          version: "1.20.0"
+
+      # Install cargo-semver-checks via cargo-binstall (no source build).
+      # Keep quick-install disabled to only use upstream release artifacts.
+      - name: Install cargo-semver-checks
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: cargo binstall --no-confirm --disable-telemetry --disable-strategies quick-install --locked cargo-semver-checks@0.44.0
+
+      - name: Run semver checks
+        run: cargo semver-checks --workspace --all-features
+
+  version-bump-check:
+    # Only pull requests have a base branch to diff against; the workflow
+    # also runs on pushes to main, where this check has nothing to compare.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Full history, so the script can diff the PR against its
+          # merge-base with the base branch.
+          fetch-depth: 0
+
+      - name: Check that modified crates carry a version bump
+        run: ./scripts/check-version-bumps.sh origin/${{ github.base_ref }}

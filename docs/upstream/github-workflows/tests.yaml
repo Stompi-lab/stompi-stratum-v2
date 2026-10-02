@@ -1,0 +1,52 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install capnp dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install -y capnproto libcapnp-dev
+      - name: Install capnp dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install capnp
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.88
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: "false"
+          key: cargo-inputs-${{ hashFiles('**/Cargo.toml', 'Cargo.lock') }}
+      # Each crate is tested on its own: `--workspace` would unify `stratum-apps`
+      # features across every member, so an app would be tested against features
+      # it does not enable when it is released or published.
+      #
+      # The integration tests need external binaries and run in their own workflow.
+      - name: Test stratum-apps with all features
+        run: cargo test -p stratum-apps --all-features
+      - name: Test pool
+        run: cargo test -p pool_sv2
+      - name: Test jd-server
+        run: cargo test -p jd_server_sv2
+      - name: Test jd-client
+        run: cargo test -p jd_client_sv2
+      - name: Test translator
+        run: cargo test -p translator_sv2
+      - name: Test bitcoin-core-sv2 crate
+        run: cargo test -p bitcoin_core_sv2

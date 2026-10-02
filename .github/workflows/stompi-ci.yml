@@ -1,0 +1,28 @@
+name: Stompi pool build and targeted tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  pool:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libssl-dev capnproto libcapnp-dev python3-cryptography
+          rustup toolchain install 1.88.0 --profile minimal
+      - name: Stompi configuration tests
+        run: /usr/bin/python3 scripts/test_stompi_config.py
+      - name: Vardiff tests
+        run: cargo test --locked -p pool_sv2 work_vardiff -j2
+      - name: STP address tests
+        run: cargo test --locked -p stratum-apps --features pool stompi -j2
+      - name: Payout tests
+        run: cargo test --locked -p stratum-apps --features pool payout -j2
+      - name: Release pool build
+        run: cargo build --release --locked -p pool_sv2 -j2
